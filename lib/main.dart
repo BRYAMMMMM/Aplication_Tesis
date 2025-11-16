@@ -24,11 +24,74 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const SplashScreen(),   // ← INICIA EN EL SPLASH
     );
   }
 }
 
+//
+// ========================= SPLASH SCREEN =========================
+// Pantalla inicial con una imagen que dura 3 segundos y luego pasa a HomeScreen
+//
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Espera 3 segundos y pasa a la pantalla principal
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: Colors.black,  // Color del Splash
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // --------------- AQUÍ VA TU IMAGEN DE INICIO ----------------
+            Image.asset(
+              'assets/imagenes/logo_tesis.png',
+              width: 200, // ↔️ Cambias el tamaño
+            ),
+
+            const SizedBox(height: 24),
+
+            // Texto debajo de la imagen
+            Text(
+              'Cargando...',
+              style: TextStyle(
+                fontSize: 16,
+                color: colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+//
+// ========================= HOME SCREEN =========================
+// Pantalla principal con botones y cámara
+//
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -58,7 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _ultimaFoto = nuevaFoto;
       });
-    } catch (e) {}
+    } catch (e) {
+      // Puedes imprimir e para ver errores
+    }
   }
 
   @override
@@ -71,9 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         title: const Text(
           'Pantalla Principal',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: Center(
@@ -91,15 +154,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               Text(
                 'Botón 1 toma una foto y la guarda.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
+
               const SizedBox(height: 24),
+
+              // =========== FOTO MOSTRADA ============
               if (_ultimaFoto != null)
                 Column(
                   children: [
@@ -120,7 +185,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Todavía no has tomado ninguna foto.',
                   style: TextStyle(fontSize: 14),
                 ),
+
               const SizedBox(height: 24),
+
+              // =========== 4 BOTONES ===============
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -156,6 +224,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+//
+// ========================= BOTÓN PERSONALIZADO =========================
+//
 class _CustomButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -188,10 +259,7 @@ class _CustomButton extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
         ),
-        icon: Icon(
-          icon,
-          size: 20,
-        ),
+        icon: Icon(icon, size: 20),
         label: Text(
           label,
           style: const TextStyle(
