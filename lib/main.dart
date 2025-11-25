@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+
+const String apiBaseUrl = 'http://172.16.223.111:8000';
 
 void main() {
   runApp(const MyApp());
@@ -24,15 +28,11 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),   // ← INICIA EN EL SPLASH
+      home: const SplashScreen(),
     );
   }
 }
 
-//
-// ========================= SPLASH SCREEN =========================
-// Pantalla inicial con una imagen que dura 3 segundos y luego pasa a HomeScreen
-//
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -41,12 +41,10 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-
   @override
   void initState() {
     super.initState();
 
-    // Espera 3 segundos y pasa a la pantalla principal
     Future.delayed(const Duration(seconds: 3), () {
       Navigator.pushReplacement(
         context,
@@ -60,20 +58,16 @@ class _SplashScreenState extends State<SplashScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.black,  // Color del Splash
+      backgroundColor: Colors.black,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --------------- AQUÍ VA TU IMAGEN DE INICIO ----------------
             Image.asset(
               'assets/imagenes/logo_tesis.png',
-              width: 200, // ↔️ Cambias el tamaño
+              width: 200,
             ),
-
             const SizedBox(height: 24),
-
-            // Texto debajo de la imagen
             Text(
               'Cargando...',
               style: TextStyle(
@@ -88,10 +82,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-//
-// ========================= HOME SCREEN =========================
-// Pantalla principal con botones y cámara
-//
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -103,6 +93,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
   File? _ultimaFoto;
 
+  String? _caption;
+  bool _cargando = false;
+
   Future<void> _tomarFoto() async {
     try {
       final XFile? foto = await _picker.pickImage(
@@ -112,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (foto == null) return;
 
       final Directory dir = await getApplicationDocumentsDirectory();
-
       final String nuevoPath =
           '${dir.path}/foto_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
@@ -120,9 +112,56 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _ultimaFoto = nuevaFoto;
+        _caption = null;
       });
+
+      await _enviarFotoAlServidor(nuevaFoto);
     } catch (e) {
-      // Puedes imprimir e para ver errores
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al tomar foto: $e')),
+      );
+    }
+  }
+
+  Future<void> _enviarFotoAlServidor(File foto) async {
+    try {
+      setState(() {
+        _cargando = true;
+      });
+
+      final uri = Uri.parse('$apiBaseUrl/predict');
+
+      final request = http.MultipartRequest('POST', uri);
+
+      request.files.add(
+        await http.MultipartFile.fromPath('image', foto.path),
+      );
+
+      final streamedResponse = await request.send();
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      if (streamedResponse.statusCode == 200) {
+        final data = jsonDecode(responseBody);
+        setState(() {
+          _caption = data['caption'] as String?;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error del servidor (${streamedResponse.statusCode}): $responseBody',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al conectar con el servidor: $e')),
+      );
+    } finally {
+      setState(() {
+        _cargando = false;
+      });
     }
   }
 
@@ -154,17 +193,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 8),
-
-              Text(
-                'Botón 1 toma una foto y la guarda.',
+              const Text(
+                'Botón 1 toma una foto, la envía al modelo y muestra la descripción.',
                 style: TextStyle(fontSize: 14, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
-
               const SizedBox(height: 24),
-
-              // =========== FOTO MOSTRADA ============
               if (_ultimaFoto != null)
                 Column(
                   children: [
@@ -185,10 +220,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Todavía no has tomado ninguna foto.',
                   style: TextStyle(fontSize: 14),
                 ),
-
+              const SizedBox(height: 16),
+              if (_cargando) ...[
+                const SizedBox(height: 8),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text('Consultando al modelo...'),
+              ],
+              const SizedBox(height: 16),
+              if (_caption != null) ...[
+                const Text(
+                  'Descripción generada por el modelo:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _caption!,
+                  style: const TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+              ],
               const SizedBox(height: 24),
-
-              // =========== 4 BOTONES ===============
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -224,9 +277,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-//
-// ========================= BOTÓN PERSONALIZADO =========================
-//
 class _CustomButton extends StatelessWidget {
   final String label;
   final IconData icon;
